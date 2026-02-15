@@ -35,7 +35,7 @@ export default {
         const formData = new FormData();
         formData.append('file', this.pdfFile);
         // Sostituisci l'URL con quello della tua API
-        await fetch('URL_DELLA_TUA_API', {
+        await fetch('http://localhost:3000/upload', {
           method: 'POST',
           body: formData
         });
