@@ -30,6 +30,8 @@
 
 <script>
 
+const API_BASE_URL = (process.env.VUE_APP_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+
 export default {
   name: 'PdfUploader',
   data() {
@@ -70,7 +72,7 @@ export default {
         // il backend si aspetta il campo 'pdf' (vedi curl di esempio)
         formData.append('pdf', this.pdfFile, this.pdfFile.name);
 
-        const res = await fetch('http://localhost:3000/upload', {
+        const res = await fetch(`${API_BASE_URL}/upload`, {
           method: 'POST',
           headers: {
             'Accept': 'application/json'
