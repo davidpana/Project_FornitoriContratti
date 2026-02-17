@@ -1,16 +1,18 @@
 <template>
   <div id="app">
+    <Header />
     <PdfUploader />
   </div>
 </template>
-
 <script>
 import PdfUploader from './components/PdfUploader.vue';
+import Header from './components/Header.vue';
 
 export default {
   name: 'App',
   components: {
-    PdfUploader
+    PdfUploader,
+    Header
   }
 };
 </script>
