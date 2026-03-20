@@ -1,21 +1,29 @@
 <template>
   <section id="upload" class="upload-shell">
     <div class="upload-card">
-      <h2 class="title">Carica PDF e invia all'API</h2>
-      <p class="subtitle">Invia il contratto al backend e visualizza subito `message`, `filename` e `sha256`.</p>
+      <h2 class="title">Upload PDF and send to API</h2>
+      <p class="subtitle">Send the contract to the backend and immediately view `message`, `filename`, and `sha256`.</p>
 
       <label class="file-label">
-        <span>{{ pdfFile ? pdfFile.name : 'Seleziona un file PDF' }}</span>
+        <span>{{ pdfFile ? pdfFile.name : 'Select a PDF file' }}</span>
         <input type="file" accept="application/pdf" @change="handleFileUpload" />
       </label>
 
       <button class="send-btn" :disabled="!pdfFile || uploading" @click="sendPdf">
-        {{ uploading ? 'Invio...' : 'Invia PDF' }}
+        {{ uploading ? 'Uploading...' : 'Send PDF' }}
+      </button>
+
+      <button v-if="uploadSuccess" class="notarize-btn" :disabled="notarizing" @click="notarizeAndCheck">
+        {{ notarizing ? 'Processing...' : 'Notarization and Check' }}
       </button>
 
     <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="notarizationResult" class="notarization-result" :class="notarizationResult.verified ? 'verified' : 'not-verified'">
+      <strong>{{ notarizationResult.verified ? 'Verified successfully' : 'Verification failed' }}</strong>
+      <pre>{{ JSON.stringify(notarizationResult.data, null, 2) }}</pre>
+    </div>
     <div v-if="serverResponse" class="response">
-      <strong class="response-title">Risposta API:</strong>
+      <strong class="response-title">API response:</strong>
       <div v-if="serverResponse && typeof serverResponse === 'object'">
         <div v-if="serverResponse.message"><strong>message:</strong> {{ serverResponse.message }}</div>
         <div v-if="serverResponse.filename"><strong>filename:</strong> {{ serverResponse.filename }}</div>
@@ -40,7 +48,10 @@ export default {
       // hash: '',
       error: '',
       serverResponse: null,
-      uploading: false
+      uploading: false,
+      uploadSuccess: false,
+      notarizing: false,
+      notarizationResult: null
     };
   },
   computed: {
@@ -53,12 +64,14 @@ export default {
   methods: {
     handleFileUpload(event) {
       this.error = '';
+      this.uploadSuccess = false;
+      this.notarizationResult = null;
       const file = event.target.files[0];
       const isPdf = file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
       if (isPdf) {
         this.pdfFile = file;
       } else {
-        this.error = 'Seleziona un file PDF valido.';
+        this.error = 'Please select a valid PDF file.';
         this.pdfFile = null;
       }
     },
@@ -66,6 +79,8 @@ export default {
       if (!this.pdfFile) return;
       this.error = '';
       this.serverResponse = null;
+      this.uploadSuccess = false;
+      this.notarizationResult = null;
       this.uploading = true;
       try {
         const formData = new FormData();
@@ -100,13 +115,63 @@ export default {
         // risposta attesa: { message, filename, sha256 }
         console.log('API response:', data);
         this.serverResponse = data;
+        this.uploadSuccess = true;
         this.error = '';
 
       } catch (e) {
         console.error(e);
-        this.error = "Errore durante l'invio del PDF.";
+        this.error = 'Error while sending the PDF.';
       } finally {
         this.uploading = false;
+      }
+    },
+    async notarizeAndCheck() {
+      this.notarizing = true;
+      this.notarizationResult = null;
+      this.error = '';
+      try {
+        // Step 1: notarize
+        const notarizeRes = await fetch(`${API_BASE_URL}/api/notarize`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hash: this.serverResponse && this.serverResponse.sha256 })
+        });
+        const notarizeContentType = notarizeRes.headers.get('content-type') || '';
+        const notarizeData = notarizeContentType.includes('application/json')
+          ? await notarizeRes.json()
+          : await notarizeRes.text();
+
+        if (!notarizeRes.ok) {
+          this.error = `Notarization error (${notarizeRes.status}): ${typeof notarizeData === 'string' ? notarizeData : JSON.stringify(notarizeData)}`;
+          return;
+        }
+
+        const notarizationId = notarizeData.notarizationId || notarizeData.id || notarizeData;
+        if (!notarizationId) {
+          this.error = 'The notarization response does not contain an ID.';
+          return;
+        }
+
+        // Step 2: verify
+        const verifyRes = await fetch(`${API_BASE_URL}/api/verify/${encodeURIComponent(notarizationId)}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        const verifyContentType = verifyRes.headers.get('content-type') || '';
+        const verifyData = verifyContentType.includes('application/json')
+          ? await verifyRes.json()
+          : await verifyRes.text();
+
+        this.notarizationResult = {
+          verified: verifyRes.ok,
+          data: verifyData
+        };
+
+      } catch (e) {
+        console.error(e);
+        this.error = 'Error during notarization or verification.';
+      } finally {
+        this.notarizing = false;
       }
     }
   }
@@ -213,5 +278,57 @@ export default {
   margin-top: 0.85rem;
   color: #b91c1c;
   font-weight: 600;
+}
+
+.notarize-btn {
+  margin-top: 0.75rem;
+  margin-left: 0.5rem;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.notarize-btn:hover:enabled {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.35);
+}
+
+.notarize-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.notarization-result {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid;
+}
+
+.notarization-result.verified {
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.notarization-result.not-verified {
+  border-color: #b91c1c;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.notarization-result pre {
+  margin-top: 0.5rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 0.6rem;
+  overflow-x: auto;
+  font-size: 0.8rem;
 }
 </style>

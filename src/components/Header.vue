@@ -7,13 +7,13 @@
         </div>
         <div class="titles">
           <h1 class="title">ContractNotary System</h1>
-          <p class="subtitle">Notarizzazione sicura e tracciabilità dei contratti</p>
+          <p class="subtitle">Secure notarization and contract traceability</p>
         </div>
       </div>
 
       <nav class="nav">
-        <a href="#upload" class="nav-link">Carica PDF</a>
-        <a href="#verifica" class="nav-link">Verifica</a>
+        <a href="#upload" class="nav-link">Upload PDF</a>
+        <a href="#verifica" class="nav-link">Verify</a>
         <span class="badge">v1.0</span>
       </nav>
     </div>
