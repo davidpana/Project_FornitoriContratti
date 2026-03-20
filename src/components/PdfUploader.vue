@@ -130,7 +130,22 @@ export default {
       this.notarizationResult = null;
       this.error = '';
       try {
-        // Step 1: notarize
+        // Step 1: request faucet
+        const faucetRes = await fetch(`${API_BASE_URL}/api/faucet/request`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' }
+        });
+        const faucetContentType = faucetRes.headers.get('content-type') || '';
+        const faucetData = faucetContentType.includes('application/json')
+          ? await faucetRes.json()
+          : await faucetRes.text();
+
+        if (!faucetRes.ok) {
+          this.error = `Faucet request error (${faucetRes.status}): ${typeof faucetData === 'string' ? faucetData : JSON.stringify(faucetData)}`;
+          return;
+        }
+
+        // Step 2: notarize
         const notarizeRes = await fetch(`${API_BASE_URL}/api/notarize`, {
           method: 'POST',
           headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
@@ -152,7 +167,7 @@ export default {
           return;
         }
 
-        // Step 2: verify
+        // Step 3: verify
         const verifyRes = await fetch(`${API_BASE_URL}/api/verify/${encodeURIComponent(notarizationId)}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
